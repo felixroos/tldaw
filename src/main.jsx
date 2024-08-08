@@ -15,32 +15,34 @@ export default function App() {
     </div>
   );
 }
+
+let readJsonBlob = (blob) =>
+  new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = function () {
+      resolve(JSON.parse(this.result));
+    };
+    reader.readAsText(blob);
+  });
+
 async function getGraph(editor) {
   const shapeIds = editor.getCurrentPageShapeIds();
   if (shapeIds.size === 0) return alert("No shapes on the canvas");
+
+  // get json for shapes
   const blob = await exportToBlob({
     editor,
     ids: [...shapeIds],
     format: "json",
     opts: { background: false },
   });
-
-  let read = (blob) =>
-    new Promise((resolve) => {
-      const reader = new FileReader();
-
-      reader.onload = function () {
-        resolve(JSON.parse(this.result));
-      };
-
-      reader.readAsText(blob);
-    });
-  const json = await read(blob);
+  const json = await readJsonBlob(blob);
   // console.log("json", json);
 
   const shapes = new Map();
   json.shapes.forEach((shape) => shapes.set(shape.id, shape));
 
+  // get edges from arrows
   const connections = json.shapes
     .filter((shape) => shape.type === "arrow")
     .map((shape) => {
@@ -56,6 +58,7 @@ async function getGraph(editor) {
     })
     .filter(Boolean);
 
+  // get nodes, parse text content
   const nodes = json.shapes
     .filter((shape) => !["arrow", "draw"].includes(shape.type))
     .map((shape) => {
@@ -63,7 +66,6 @@ async function getGraph(editor) {
         .filter((con) => con[1] === shape.id)
         .map((con) => con[0]);
       const [type, ...args] = shape.props.text.split(" ");
-
       return {
         id: shape.id,
         type,
@@ -72,7 +74,8 @@ async function getGraph(editor) {
         ins,
       };
     });
-  // kabelsalat
+
+  // create kabelsalat nodes
   let knodes = {};
   let out;
   nodes.forEach((node) => {
@@ -86,6 +89,7 @@ async function getGraph(editor) {
       });
     }
   });
+  // connect nodes together
   connections.forEach(([start, end, inlet]) => {
     const node = nodes.find((n) => n.id === end);
     const index = inlet ? node.args.indexOf(inlet) : 0;
@@ -105,7 +109,6 @@ const { SalatRepl } = kabelsalat;
 const repl = new SalatRepl({
   base: "https://unpkg.com/@kabelsalat/web@0.1.0/dist/",
 });
-console.log("repl", repl);
 
 function Tldaw() {
   const editor = useEditor();
@@ -126,8 +129,6 @@ function Tldaw() {
       document.removeEventListener("keypress", keypress);
     };
   });
-
-  editor.sideEffects.registerAfterCreateHandler("shape", async () => {});
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(
