@@ -49,6 +49,10 @@ async function getGraph(editor) {
       const index = shape.props.text;
       const bindings = getArrowBindings(editor, shape);
       const { start, end } = bindings;
+      if (!start || !end) {
+        console.warn("skipped loose arrow");
+        return;
+      }
       const startId = start.toId;
       const endId = end.toId;
       const label = `${shapes.get(startId).props.text} -> ${
