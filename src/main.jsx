@@ -46,7 +46,7 @@ async function getGraph(editor) {
   const connections = json.shapes
     .filter((shape) => shape.type === "arrow")
     .map((shape) => {
-      const index = shape.props.text;
+      const name = shape.props.text;
       const bindings = getArrowBindings(editor, shape);
       const { start, end } = bindings;
       if (!start || !end) {
@@ -58,7 +58,7 @@ async function getGraph(editor) {
       const label = `${shapes.get(startId).props.text} -> ${
         shapes.get(endId).props.text
       }`;
-      return [startId, endId, index, label];
+      return [startId, endId, name, label];
     })
     .filter(Boolean);
 
@@ -96,12 +96,21 @@ async function getGraph(editor) {
   // connect nodes together
   connections.forEach(([start, end, inlet]) => {
     const node = nodes.find((n) => n.id === end);
-    const index = inlet ? node.args.indexOf(inlet) : 0;
+    inlet = inlet || "_";
+    let index = node.args.indexOf(inlet);
+    const label = `${node.type} ${node.args.join(" ")}`;
+    if (inlet === "_" && !node.args.includes("_")) {
+      index = 0;
+      if (node.args[0]) {
+        console.warn(
+          `node "${label}": unnamed input arrow not used as "_". Falling backing to inlet 0. Argument "${node.args[0]}" will be ignored`
+        );
+      }
+    }
     if (index === -1) {
-      console.log("args", node.args, inlet);
-      throw new Error(
-        "arrow must be given a name that matches a variable in the target arguments"
-      );
+      let msg = `node "${label}": arrow with label "${inlet}" not used.. skipping`;
+      console.log(msg);
+      return;
     }
     knodes[end].ins[index] = knodes[start];
   });
